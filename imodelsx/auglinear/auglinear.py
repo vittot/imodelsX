@@ -28,6 +28,7 @@ from os.path import join
 import torch
 from sklearn.exceptions import ConvergenceWarning
 from imodelsx.auglinear.embed import _clean_np_array
+from collections import Counter
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -40,6 +41,7 @@ class AugLinear(BaseEstimator):
         ngrams: int = 2,
         all_ngrams: bool = False,
         min_frequency: int = 1,
+        dataset_min_frequency: int = 1,
         tokenizer_ngrams=None,
         random_state=None,
         normalize_embs=False,
@@ -104,6 +106,7 @@ class AugLinear(BaseEstimator):
         self.random_state = random_state
         self.all_ngrams = all_ngrams
         self.min_frequency = min_frequency
+        self.dataset_min_frequency = dataset_min_frequency
         self.normalize_embs = normalize_embs
         self.cache_embs_dir = cache_embs_dir
         self.fit_with_ngram_decomposition = fit_with_ngram_decomposition
@@ -313,6 +316,9 @@ class AugLinear(BaseEstimator):
             embedding_strategy=self.embedding_ngram_strategy
         )
 
+        freqs = self._get_unique_ngrams_freq(X)
+        ngrams_to_prune = [k for (k, v) in freqs.items() if v < self.dataset_min_frequency]
+
         if summed:
             embs = []
             for x in tqdm(X):
@@ -321,6 +327,7 @@ class AugLinear(BaseEstimator):
                     ngrams=self.ngrams,
                     all_ngrams=self.all_ngrams,
                     fit_with_ngram_decomposition=self.fit_with_ngram_decomposition,
+                    ngrams_to_prune=ngrams_to_prune,
                     **kwargs,
                 )
                 embs.append(emb["embs"])
@@ -328,7 +335,7 @@ class AugLinear(BaseEstimator):
         else:
             # get embedding for a list of ngrams
             embs = imodelsx.auglinear.embed.embed_and_sum_function(
-                X, ngrams=None, fit_with_ngram_decomposition=False, sum_embeddings=False, **kwargs,
+                X, ngrams=None, fit_with_ngram_decomposition=False, sum_embeddings=False, ngrams_to_prune=ngrams_to_prune, **kwargs,
             )["embs"]
             embs = np.array(embs).squeeze()
             assert embs.shape[0] == len(X)
@@ -347,6 +354,24 @@ class AugLinear(BaseEstimator):
             )
             all_ngrams |= set(seqs)
         return sorted(list(all_ngrams))
+
+    def _get_unique_ngrams_freq(self, X):
+        '''
+        Get frequency of each ngram in the dataset, without filtering for frequency
+        :param X: dataset
+        :return: Counter
+        '''
+        all_ngrams = []
+        for x in X:
+            seqs = imodelsx.util.generate_ngrams_list(
+                x,
+                ngrams=self.ngrams,
+                tokenizer_ngrams=self.tokenizer_ngrams,
+                all_ngrams=self.all_ngrams,
+                prune_stopwords=self.prune_stopwords,
+            )
+            all_ngrams += seqs
+        return Counter(all_ngrams)
 
     def predict(self, X, warn=True):
         """For regression returns continuous output.

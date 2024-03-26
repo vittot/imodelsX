@@ -28,6 +28,7 @@ def embed_and_sum_function(
     embedding_strategy: str = 'mean',
     sum_embeddings=True,
     prune_stopwords=False,
+    ngrams_to_prune=None
 ):
     """Get summed embeddings for a single example
 
@@ -66,6 +67,10 @@ def embed_and_sum_function(
     seqs = _get_seqs(
         example, dataset_key_text, fit_with_ngram_decomposition,
         ngrams, tokenizer_ngrams, parsing, nlp_chunks, all_ngrams, prune_stopwords)
+
+    if ngrams_to_prune is not None:
+        seqs = [s for s in seqs if s not in ngrams_to_prune]
+
     if embedding_strategy == 'next_token_distr':
         seqs = [f'{embedding_prefix}{x_i}{embedding_suffix}' for x_i in seqs]
 
