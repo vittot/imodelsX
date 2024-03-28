@@ -43,6 +43,7 @@ class AugLinear(BaseEstimator):
         min_frequency: int = 1,
         dataset_min_frequency: int = 1,
         tokenizer_ngrams=None,
+        spacy_tokenizer_lang="en",
         random_state=None,
         normalize_embs=False,
         cache_embs_dir: str = None,
@@ -98,8 +99,14 @@ class AugLinear(BaseEstimator):
         self.checkpoint = checkpoint
         self.ngrams = ngrams
         if tokenizer_ngrams == None:
-            from spacy.lang.en import English
-            self.tokenizer_ngrams = English().tokenizer
+            if spacy_tokenizer_lang == 'en':
+                from spacy.lang.en import English
+                self.tokenizer_ngrams = English().tokenizer
+            elif spacy_tokenizer_lang == 'nl':
+                from spacy.lang.nl import Dutch
+                self.tokenizer_ngrams = Dutch().tokenizer
+            else:
+                raise Exception("Supported Spacy languages are en and nl")
         else:
             self.tokenizer_ngrams = tokenizer_ngrams
         self.layer = layer
