@@ -127,7 +127,7 @@ def embed_and_sum_function(
                     raise Exception(f"keys: {output.keys()}")
             emb_cpu = emb.cpu().detach().numpy()
 
-            embs.append(emb)
+            embs.append(emb_cpu)
             emb_tokens.append(batch_tokens)
 
         embs = np.concatenate(embs)
