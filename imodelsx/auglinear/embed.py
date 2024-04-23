@@ -68,8 +68,8 @@ def embed_and_sum_function(
         example, dataset_key_text, fit_with_ngram_decomposition,
         ngrams, tokenizer_ngrams, parsing, nlp_chunks, all_ngrams, prune_stopwords)
 
-    if ngrams_to_prune is not None:
-        seqs = [s for s in seqs if s not in ngrams_to_prune]
+    # if ngrams_to_prune is not None:
+    #     seqs = [s for s in seqs if s not in ngrams_to_prune]
 
     if embedding_strategy == 'next_token_distr':
         seqs = [f'{embedding_prefix}{x_i}{embedding_suffix}' for x_i in seqs]
@@ -81,6 +81,7 @@ def embed_and_sum_function(
         tokenizer_embeddings.pad_token = tokenizer_embeddings.eos_token
 
     # compute embeddings
+    emb_tokens = []
     embs = []
     if checkpoint.startswith("hkunlp/instructor"):
         embs = model.encode(
@@ -92,10 +93,10 @@ def embed_and_sum_function(
         )
 
         ds = Dataset.from_dict(tokens).with_format("torch")
-
+        i = 0
         for batch in DataLoader(ds, batch_size=batch_size, shuffle=False):
             batch = {k: v.to(model.device) for k, v in batch.items()}
-
+            batch_tokens = seqs[i*batch_size:(i+1)*batch_size]
             with torch.no_grad():
                 output = model(**batch)
             torch.cuda.empty_cache()
@@ -124,10 +125,13 @@ def embed_and_sum_function(
                     emb = _mean_with_mask(emb, batch["attention_mask"])
                 else:
                     raise Exception(f"keys: {output.keys()}")
+            emb_cpu = emb.cpu().detach().numpy()
 
-            embs.append(emb.cpu().detach().numpy())
+            embs.append(emb)
+            emb_tokens.append(batch_tokens)
 
         embs = np.concatenate(embs)
+        emb_tokens = np.concatenate(emb_tokens)
 
     # else:
         # raise Exception(f"Unknown model checkpoint {checkpoint}")
@@ -138,7 +142,7 @@ def embed_and_sum_function(
     if len(seqs) == 0:
         embs *= 0
 
-    return {"embs": embs, "seq_len": len(seqs)}
+    return {"embs": embs, "seq_len": len(seqs), "tokens": emb_tokens}
 
 
 def _mean_with_mask(emb_batch, mask_batch):
